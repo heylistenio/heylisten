@@ -1,0 +1,10 @@
+{
+  "name": "HeyListen",
+  "version": "0.0.1",
+  "description": "group content viewer",
+  "dependencies": {
+    "express": "^4.13.3",
+    "mongodb": "^2.0.46",
+    "socket.io": "^1.3.6"
+  }
+}

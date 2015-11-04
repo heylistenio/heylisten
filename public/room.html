@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Hey Listen!</title>
+    <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.6.0/pure-min.css"/>
+    <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.6.0/grids-responsive-min.css"/>
+    <link rel="stylesheet" href="/css/style.css">
+
+    <script src="//cdn.jsdelivr.net/emojione/1.5.0/lib/js/emojione.min.js"></script>
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/emojione/1.5.0/assets/css/emojione.min.css" />
+</head>
+<body>
+    <div id="header">
+        <div id="logo">HeyListen.io</div>
+        <button id="voteSkip" class="pure-button" onclick="vote()">Skip</button>
+        <div id="current"></div>
+    </div>
+    <div class="pure-g contentClass">
+        <div class="pure-u-4-5">
+            <div id="media">
+                <div id="player">
+                    <div id="placeholder" class="active"><img src="/img/addSongs.png" /></div>
+                </div>
+                <div id="volumeDiv">
+                    <input type="range" id="volume" min="0" max="100" step="1" value="75"/>
+                </div>
+            </div>
+            <div class="pure-g chat">
+                <div class="pure-u-3-24 clients">
+                    <div id="clientsWrapper"><ul id="clients"></ul></div>
+                </div>
+                <div class="pure-u-21-24 messagesClass">
+                    <div id="messagesWrapper">
+                        <ul id="messages"></ul>
+                    </div>
+                </div>
+                <div class="pure-u-3-24" id="nickname"></div>
+                <div  id="chatInputWrapper" class="pure-u-21-24">
+                    <form  id="messageInput" action="" class="pure-form">
+                        <input id="m" autocomplete="off"/><button class="pure-button pure-button-primary button-chat">Send</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="pure-u-1-5 playlistClass">
+            <div id="playlistWrapper">
+                <ul id="playlist"></ul>
+            </div>
+            <div id="playlistInputWrapper">
+                <form  id="playlistAdd" action="" class="pure-form">
+                    <input id="pla" autocomplete="off" /><button class="pure-button pure-button-primary">Add</button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="nickbox">
+        <form id="nickinput" action="" class="pure-form">
+            <p><h3>Hey Listen!</h3></p>
+            <p><h4>You'll need a nickname</h4></p>
+            <input id="nick" autocomplete="off" /><button class="pure-button pure-button-primary">OK</button>
+         </form>
+    </div>
+    <script src="https://f.vimeocdn.com/js/froogaloop2.min.js"></script>
+    <script src="https://w.soundcloud.com/player/api.js"></script>
+    <script src="http://www.youtube.com/player_api"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/script.js"></script>
+</body>
+</html>

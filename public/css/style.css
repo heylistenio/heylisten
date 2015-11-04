@@ -1,0 +1,304 @@
+html {
+    position: fixed;
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+*, *:before, *:after {
+    box-sizing: border-box;
+}
+
+body {
+    font: 13px Helvetica, Arial;
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+    background-color: #efefef;
+}
+
+div {
+    margin: 0 0;
+    padding: 0 0;
+}
+
+
+#header {
+    height:55px;
+    background-color:#0B4B75;
+    color:#efefef;
+    padding:0;
+    font-size:20px;
+    z-index:20;
+    font-weight: bold;
+}
+
+#header #current {
+    margin:0.5% 0.85% 0px 0px;
+    font-weight: bold;
+    font-size: 1.7em;
+    padding: 0;
+    float: right;
+    width:750px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    text-align: right;
+}
+
+#logo {
+    float:left;
+    margin:0.85% 0px 0px 0.85%;
+}
+
+#voteSkip {
+    float:right;
+    margin: 0.5% 0.85% 0px 0px;
+    background-color: #072D46;
+    color:#bbb;
+    border:1px solid #1A80B6;
+    border-radius: 5px;
+    padding: 0.3em 0.5em;
+}
+
+.contentClass {
+    height: 95vh;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 0 0;
+    width: 100vw;
+}
+
+.pure-u-4-5 {
+    position: relative;
+    height: 100%;
+}
+
+.pure-u-1-5 {
+
+}
+
+.playlistClass {
+    height: 100%;
+    background: #333333;
+
+
+}
+#media {
+    background-color:#ccc;
+    border-bottom: 1px solid #bbb;
+}
+
+
+#player {
+    height:315px;
+    background-color:#ccc;
+    z-index:10;
+    overflow:hidden;
+}
+
+#volumeDiv {
+
+}
+
+#volume {
+    left: 50%;
+}
+
+#placeholder {
+    position: relative;
+    width: 560px;
+    height: 315px;
+    left: 50%;
+    margin-left: -280px;
+    background: white;
+}
+
+.player {
+    border: none;
+    position: relative;
+    height: 315px;
+    width: 560px;
+    left: 50%;
+    margin-left: -280px;
+    box-shadow: 0px 0px 5px rgba(0,0,0,0.5);
+}
+#playlistWrapper {
+    overflow-y: auto;
+    height: calc(100vh - 110px);
+}
+
+#playlistInputWrapper {
+    height: 40px;
+    position: absolute;
+    bottom: 1vh;
+    left: 80vw;
+    right: 0;
+    margin-bottom: 0;
+}
+
+
+#pla {
+    width: 80%;
+    padding: 10px;
+    background: #2e2e2e;
+    border: 1px solid #555;
+    box-shadow: 0px 1px 3px #111 inset;
+    margin: 0 2%;
+    color:#eee;
+}
+
+#playlist {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+#playlist li {
+    padding: 10px;
+    color: #efefef;
+    border-bottom: 1px solid #555;
+}
+
+.button-playlist {
+    background-color: #1A80B6;
+}
+
+.chat {
+    height: calc(100% - 400px);
+    background-color: #efefef;
+}
+
+.clients {
+    background: #ddd none repeat scroll 0% 0%;
+    color: #333;
+    height: calc(100% - 10px);
+    bottom: 6vh;
+    border-right:1px solid #bbb;
+    border-bottom:1px solid #bbb;
+}
+
+#clients {
+    list-style-type: none;
+    color:#333;
+    padding:0;
+    margin:0;
+}
+
+#clients li {
+    border-bottom: 1px solid #ccc;
+    padding: 5px 5px 5px 10px;
+    overflow-x: hidden;
+}
+
+.messagesClass a {
+    color: black;
+}
+.serverMessage {
+    font-style: italic;
+    font-weight: bold;
+}
+
+#messagesWrapper {
+    overflow: auto;
+    height:calc(100vh - 460px);
+    width: 100%;
+    top: 315px;
+    bottom: 40px;
+}
+
+#messages {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+
+#messages li {
+    padding: 5px 5px 5px 10px;
+}
+
+#messages li:nth-child(even) {
+    background: #e4e4e4;
+}
+
+#chatInputWrapper {
+    position: absolute;
+    left: 10vw;
+    height: 40px;
+    width: 50vw;
+    bottom: 10px;
+    margin-bottom: 10px;
+    padding: 0;
+}
+
+#m {
+    display: inline-block;
+    width: 60vw;
+    padding: 10px;
+    margin-right: 1%;
+    resize: none;
+}
+
+#messageInput {
+    width: 80vw;
+    display: inline-block;
+}
+
+.button-chat {
+    margin: 0;
+    width: 8%;
+    font-size: 125%;
+    background-color: #1A80B6;
+}
+
+.pure-button {
+    background-color: #1A80B6;
+    margin-top: -2px;
+}
+
+#nickbox {
+    display: none;
+    width: 350px;
+    height:180px;
+    position: absolute;
+    z-index: 99;
+    left: 50%;
+    top: 50%;
+    background:#f8f8f8;
+    box-shadow: 0px 0px 10px rgba(0,0,0,0.5);
+    border-radius: 20px;
+    color:#333;
+    text-align: center;
+    border: 10px solid #e8e8e8;
+    margin:-90px 0px 0px -175px;
+}
+
+#nickbox h3 {
+    color:#0B4B75;
+    font-size:30px;
+    margin:15px 0 15px 0;
+}
+
+#nickbox input {
+    background-color:#ddd;
+    border:1px solid #ccc;
+    box-shadow: 0px 1px 3px #aaa inset;
+}
+
+input#nick {
+    margin:0 10px 0 0;
+}
+
+#nickname {
+    position: absolute;
+    left: 0;
+    bottom: 30px;
+    height: 40px;
+    padding:22px 10px 0 0;
+    text-align: right;
+    font-size: 15px;
+    margin-bottom: 0;
+}
