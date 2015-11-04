@@ -3,7 +3,7 @@
 // online media APIs
 
 var https = require('https');
-var httpNS = require('http');
+var http = require('http');
 
 //get video titles
 function getYTVideoInfo(id, ytAPIkey, callback) {
@@ -33,7 +33,7 @@ function getSCSongInfo(id, scAPIkey, callback) {
     var newTitle;
     var newURL = '';
     var uri = 'http://api.soundcloud.com/resolve.json?url=' + id + '&client_id=' + scAPIkey; //the url to resolve the other url
-    httpNS.get(uri, function (res) {
+    http.get(uri, function (res) {
         var body = '';
         res.on('data', function(chunk) {
             body+= chunk;
@@ -77,7 +77,7 @@ function getVimeoSongInfo(id, apiKey, callback) {
 	var newURL = '';
 	var uri = 'https://api.vimeo.com/videos/' + id;
 	var path = '/videos/' + id;
-	var apikey = {'Authorization': 'bearer ' + apiKey};
+	var apikey = {'Authorization': 'bearer 14b21e39f0d47c138a0c70f625d1cda1'};
 	var options = {
 		hostname: 'api.vimeo.com',
 		port: 443,

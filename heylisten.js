@@ -6,10 +6,12 @@ var url = require('url');
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var fs = require('fs');
-var mongoClient = require('mongodb').Mongoclient;
+var mongoClient = require('mongodb').MongoClient;
 var assert = require('assert');
+var db = false;
 
-var apiKeys = require('./config.js');
+var apiKeys = require('./config.js').apiKeys;
+var dbUrl = require('./config.js').url;
 var maml = require('./maml.js');
 
 //the message people see when they start a new room
@@ -19,7 +21,7 @@ var welcomeMessage = "Welcome to heylisten.io! As you can see the website is \
                     what you think of our efforts so far by tweeting at \
                     https://twitter.com/heylisten_io \
                     and checkout the devblog at http://blog.heylisten.io \
-                    We support chat commands now use /help to find out more.";
+                    We support chat commands now, use /help to find out more.";
 
 var rooms = io.sockets.adapter.rooms;
 fs.writeFile('./public/roomList.json', '', function(e){
@@ -38,8 +40,7 @@ app.get('/*', function(req, res) {
     res.sendFile(__dirname + '/public/room.html');
 });
 
-//use this function instead of console.log for errors, logs etc
-
+// use this function for all stdOut that isn't debug related
 function terminalMessage(text) {
     var d = new Date();
     var year = d.getFullYear();
@@ -52,32 +53,67 @@ function terminalMessage(text) {
     console.log(timeStamp + text);
 }
 
+// prototypes for storing all information about rooms
+function playlistProto(room, playlistArray) {
+    this.room = room; // name of the room this playlist belongs to
+    this.playlist = playlistArray; // array of plObj - check readme
+}
+
+function roomProto(name, opToken, startAt, votedT, finishedT, userList) {
+    this.name = name; // name of the room
+    this.opToken = opToken; // token for room operators
+    this.startTime = startAt; // the time at which current song was started
+    this.voted = votedT; // list of tokens of people who voted to skip
+    this.finished = finishedT; // list of tokens of people who finished playing the current song
+    this.userList = userList; // list of nicknames currently in the room
+}
+
+function userProto(room, token, nick, id) {
+    this.token = token;
+    this.room = room; // array containing the list of users names, their socket.id and authTokens
+    this.nick = nick; // nickname of the user
+    this.id = id; // last socket.id for that user, this one might get removed if we end up not using it
+}
 // ALL DATABASE RELATED FUNCITONS GO HERE
+
+mongoClient.connect(dbUrl, function(err, database){
+    assert.equal(null, err);
+    db = database;
+    terminalMessage('Connected to database');
+});
+
+//finds the room document and returns it, returns null if there is no document
+function getRoom(room, callback) {
+    if (db) {
+        console.log('run');
+        var cursor = db.collection('rooms').find({"name": room});
+        cursor.each(function(err, doc){
+            console.log(doc);
+            assert.equal(err, null);
+            if (doc) {
+                console.log(92, doc);
+                callback(doc);
+            } else {
+                callback(null);
+            }
+        });
+    } else {
+        callback(null);
+    }
+
+}
+
+//finds the playlist document and returns it
 function getPlaylist(room) {
 
 }
-
-function setPlaylist(room) {
-
-}
-
-function getUsers(room){
-
-}
-
-function setUsers(room) {
-
-}
-
-function getRoomProperties(room) {
-
-}
-
-function setRoomProperties(room) {
+//finds the user document and returns it
+function getUser(room, user) {
 
 }
 
 // generate authentication tokens
+// use this to generate user and op tokens
 function generateToken(length){
     var chars = 'abcdefghijklmnopqrstuvxyz0123456789ABCDEFGHIJKLMNOPQRSTUVXYZ!@#$%&*=+-_';
     var token = '';
@@ -87,6 +123,7 @@ function generateToken(length){
     }
     return token;
 }
+
 
 // find sockets connected to a room
 function findClientsByRoomID(roomId) {
@@ -101,7 +138,6 @@ function findClientsByRoomID(roomId) {
 }
 
 // update the playlist
-
 function updateServerPlaylist(room, userId) {
     var clients = findClientsByRoomID(room);
     clients = clients.filter(Boolean);
@@ -114,8 +150,8 @@ function updateServerPlaylist(room, userId) {
     }
 }
 
-//url parser
-//when adding support for a new platform start here
+// url parser
+// when adding support for a new platform start here
 function urlParser(uri) {
     var platform;
     var media = 0;
@@ -153,28 +189,31 @@ function YTUrlParser(uri) {
     }
 }
 
-//parse vimeo url and get the id
+// parse vimeo url and get the id
 function VimeoUrlParser(uri) {
     var regExp = /(\d+)/;
     var match = uri.match(regExp);
     return match[0];
 }
 
-//send a list of clients
-function sendClients(roomID) {
-    var clients = [];
-    var clientsArr = rooms[roomID].users;
-    clientsArr = clientsArr.filter(Boolean);
-    for (var c in clientsArr) {
-        clients.push(clientsArr[c].nick);
-    }
-    clients.sort();
-    io.to(roomID).emit('client list', clients);
+// send a list of clients
+function sendNames(room) {
+        var clients = [];
+        getRoom(room, function(doc) {
+            console.log(203, doc);
+            for (var c in doc.userList) {
+                clients.push(doc.userList[c]);
+            }
+            clients.sort();
+            io.to(room).emit('client list', clients);
+        });
+
+
 }
 
-//check if user has a nickname and request one if he doesn't
-//returns false if id has no assigned nickname
-function checkNickname(roomID, userID) {
+// check if user has a nickname and request one if he doesn't
+// returns false if id has no assigned nickname
+function doIKnowYou(room, user) {
     for (var u in rooms[roomID].users) {
         if (rooms[roomID].users[u] == userID) {
             return true;
@@ -191,7 +230,49 @@ function findUserArrPos(userId, roomId) {
     }
 
 }
-//check if user voted
+
+// add user info to the user and room documents
+function addUsrInfo(room, userId, nick) {
+    console.log('adduserinfo');
+    nick = nick.substring(0, 16);
+
+// change nickname this has to be rewritten to support the new db
+/*    var exists = false;
+    for (var i = 0; i < rooms[room].users.length; i++) {
+        if (rooms[room].users[i].id === userId) {
+            io.to(room).emit("server message", rooms[room].users[i].nick + " changed his name to " + nick);
+            rooms[room].users[i].nick = nick;
+            exists = true;
+            break;
+        }
+    }
+
+    if (exists === false) {
+        newUsr = {
+            'id': userId,
+            'nick': nick
+        };
+        rooms[room].users.push(newUsr);
+    }
+*/
+    //check if nickname is already in use in that room
+    getRoom(room, function(doc){
+        if (doc) {
+            console.log(261,doc.userList);
+            if (doc.userList.indexOf(nick) !== -1) {
+                terminalMessage('Resending info request for ' + userId);
+                io.to(userId).emit('info request');
+            } else {
+                newUsr = new userProto(0, room, nick, userId);
+                names.userList.push(nick);
+                db.users.insertOne(newUsr);
+                sendNames(room);
+            }
+        }
+    });
+}
+
+// check if user voted
 function checkIfVoted(userId, roomId) {
     terminalMessage('vote');
     var vote = rooms[roomId].voteCount.indexOf(userId);
@@ -212,7 +293,7 @@ function averager(timeArr, users) {
     return avg;
 }
 
-//get current date in ms since Jan 1 1970
+// get current date in ms since Jan 1 1970
 // if format is "s" return sencods
 // else miliseconds
 function getCurrentDate(format) {
@@ -237,9 +318,9 @@ function nextSong(room) {
     rooms[room].timeStarted = getCurrentDate();
 }
 
-//update the timestamp in the playlist
-//the platform should always be rooms[room].playlist[0].platform
-//it asks for it as a parameter to avoid potential bugs
+// update the timestamp in the playlist
+// the platform should always be rooms[room].playlist[0].platform
+// it asks for it as a parameter to avoid potential bugs
 function updateTime(room, platform) {
     terminalMessage("updateTime");
     var newTime = getCurrentDate();
@@ -261,7 +342,7 @@ function updateTime(room, platform) {
     }
 }
 
-//get playlist position by song id
+// get playlist position by song id
 function getPlaylistPositionById(room, id) {
     for (var i = 0; i < rooms[room].playlist.length; i++) {
         if (rooms[room].playlist[i].id === id) {
@@ -323,7 +404,7 @@ function chatCommands(message, usrId, room) {
 }
 
 // get multiple songs from a channel
-// /add <streaming service> <channel> <number of videos 1-50>
+// /add <streaming service> <channel> <number of videos 1-20>
 // /add youtube mrsuicidesheep 10
 function getSongs(message, userId, room) {
     command = message.msg.split(" ");
@@ -346,7 +427,7 @@ function getSongs(message, userId, room) {
 }
 
 //get multiple songs from a yt playlist
-// /addplaylist <playlistID> <number of videos 1-50>
+// /addplaylist <playlistID> <number of videos 1-20>
 function getPlaylist(message, userId, room){
     command = message.msg.split(" ");
     if (command[1] && !isNaN(command[2]) && command[2] < 21 && command[2] > 0) {
@@ -473,26 +554,48 @@ function voteSkip(currentSong , userId, room) {
     }
 }
 
-// add nickname to the users array
-function addNick(room, userId, nick) {
-    nick = nick.substring(0, 16);
-    var exists = false;
-    for (var i = 0; i < rooms[room].users.length; i++) {
-        if (rooms[room].users[i].id === userId) {
-            io.to(room).emit("server message", rooms[room].users[i].nick + " changed his name to " + nick);
-            rooms[room].users[i].nick = nick;
-            exists = true;
-            break;
+// create a new room
+function newRoom(roomName){
+    var room = new roomProto(roomName, generateToken(16), 0, [], [], []);
+    var playlist = new playlistProto(roomName, []);
+    db.collection('rooms').insertOne(room);
+    db.collection('playlists').insertOne(playlist);
+}
+
+// handshake on the beginning of the connection, checks room name
+// makes sure the user has a nickname
+// returns the room name
+function handshake(s, callback) {
+    // make sure heylisten is connected to db before starting to accept clients
+    if (db) {
+        // determine the proper room name
+        var room = s.handshake.headers.referer;
+        if (!room) {
+            return;
         }
+        var n;
+        // if (room) is the fix for --> var n = room.lastIndexOf('/') TypeError: Cannot call method 'lastIndexOf' of undefined //
+        if (room) n = room.lastIndexOf('/');
+        room = room.slice(n, room.length);
+        room = room.toLowerCase();
+        roomCheck = encodeURI(room);
+        if (roomCheck !== room) {
+            room = roomCheck;
+        }
+        // check if room already exists in db and add it if it doesn't
+        var roomExists;
+        getRoom(room, function(doc){
+            console.log(587, doc);
+            if(!doc) {
+                terminalMessage('Creating a new room ' + room);
+                newRoom(room);
+            }
+            callback(room);
+        });
+
+        //var check = findClientsByRoomID(room); //change
+
     }
-    if (exists === false) {
-        newUsr = {
-            'id': userId,
-            'nick': nick
-        };
-        rooms[room].users.push(newUsr);
-    }
-    sendClients(room);
 }
 
 // server client communication
@@ -503,8 +606,8 @@ function addNick(room, userId, nick) {
 // song finished - song finished playing, remove pos 0 from playlist, client to server only
 // client list - list clients connected to a room, server to client only
 // server message - server massages, server to client only
-// nickname - nickname to be assigned to the id, client to server only
-// nick request - nickname request, server to client only
+// info - nickname to be assigned to the id, client to server only
+// info request - nickname request, server to client only
 // vote skip - cast a vote to skip a song, client to server only
 // time - spot in the song the client is in, / not implemented
 // startat                                   /not implemented
@@ -512,59 +615,21 @@ function addNick(room, userId, nick) {
 
 
 io.on('connection', function(socket) {
-    var room = socket.handshake.headers.referer;
-    if (!room) {
-        return;
-    }
-    var n;
-    if (room) n = room.lastIndexOf('/'); // if (room) is the fix for --> var n = room.lastIndexOf('/') TypeError: Cannot call method 'lastIndexOf' of undefined //
-    room = room.slice(n, room.length);
-    room = room.toLowerCase();
-    roomCheck = encodeURI(room);
-    if (roomCheck !== room) {
-        room = roomCheck;
-    }
-    var check = findClientsByRoomID(room);
-    socket.join(room);
-    // list of users
-    if (!rooms[room].users) {
-        rooms[room].users = [];
-    }
-    //check if user has a nickname and request one if he doesnt
-    var nickTest = checkNickname(room, socket.id);
-    if (!nickTest) {
-        io.to(socket.id).emit('nick request');
-    }
-    // number of people who finished playing current song
-    if (!rooms[room].finished){
-        rooms[room].finished = [];
-    }
-    // number of people who voted to skip current song
-    if (!rooms[room].voteCount) {
-        rooms[room].voteCount = [];
-    }
-    // playlist
-    if (!rooms[room].playlist) {
-        rooms[room].playlist = [];
-    } else if(rooms[room].playlist[0]) {
-        updateTime(room, rooms[room].playlist[0].platform);
-        io.to(socket.id).emit('playlist', rooms[room].playlist);
-        io.to(room).emit('server message', "New user connected");
-    }
-    //time in seconds from 1 Jan 1970 rounded down when the current song in the room started playing
-    if (!rooms[room].timeStarted) {
-        rooms[room].timestarted = 0;
-    }
-    if (!rooms[room].currentTime) {
-        rooms[room].currentTime = 0;
-    }
-    //temporary
-    if(!rooms[room].times) {
-        rooms[room].times = [];
-    }
+    // perform handshake
+    var room = '';
+    handshake(socket, function(r){
+        room = r;
+        socket.join(room);
+        // get information about the user
+        io.to(socket.id).emit('info request');
+    });
+
+
+    // send playlist to the new user
+
     io.to(socket.id).emit('server message', welcomeMessage);
     terminalMessage('user ' + socket.id + ' joined room ' +room);
-    sendClients(room);
+    //sendNames(room);
 
     //save the new list of rooms
     saveRoomList();
@@ -631,8 +696,9 @@ io.on('connection', function(socket) {
 
 
     //get a nickname and add it to an array for that room
-    socket.on('nickname', function (nick) {
-        addNick(room, socket.id, nick);
+    socket.on('info', function (nick) {
+        console.log(699, 'info');
+        addUsrInfo(room, socket.id, nick);
     });
 
     //recieve times from users in a room

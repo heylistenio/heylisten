@@ -233,20 +233,21 @@ function setNickname(reset) {
                 document.getElementById("nickbox").style.display = "none";
                 document.getElementById("nickname").innerHTML = nickname;
                 newCookie(nickname);
-                socket.emit("nickname", nickname);
+                socket.emit("info", nickname);
                 return false;
             }
         };
     } else {
         nickname = n;
         document.getElementById("nickname").innerHTML = nickname;
-        socket.emit("nickname", nickname);
+        socket.emit("info", nickname);
     }
     return false;
 }
 
 //set nickname
-socket.on('nick request', function() {
+//add token stuff here
+socket.on('info request', function() {
     setNickname();
 });
 
