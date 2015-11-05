@@ -6,10 +6,9 @@ var url = require('url');
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var fs = require('fs');
-var mongoClient = require('mongodb').MongoClient;
+var mongoose = require('mongoose');
+var Schema = mongoose.Schema;
 var assert = require('assert');
-var db = false;
-
 var apiKeys = require('./config.js').apiKeys;
 var dbUrl = require('./config.js').url;
 var maml = require('./maml.js');
@@ -53,45 +52,46 @@ function terminalMessage(text) {
     console.log(timeStamp + text);
 }
 
-// prototypes for storing all information about rooms
-function playlistProto(room, playlistArray) {
-    this.room = room; // name of the room this playlist belongs to
-    this.playlist = playlistArray; // array of plObj - check readme
-}
+// Mongoose Schemas
+var playlistSchema = new Schema({
+    room: String,
+    playlist: Array
+});
 
-function roomProto(name, opToken, startAt, votedT, finishedT, userList) {
-    this.name = name; // name of the room
-    this.opToken = opToken; // token for room operators
-    this.startTime = startAt; // the time at which current song was started
-    this.voted = votedT; // list of tokens of people who voted to skip
-    this.finished = finishedT; // list of tokens of people who finished playing the current song
-    this.userList = userList; // list of nicknames currently in the room
-}
+var roomSchema = new Schema({
+    name: String,
+    opToken: String,
+    startTime: Number,
+    votes: Array,
+    Finished: Array,
+    userList: Array
+});
 
-function userProto(room, token, nick, id) {
-    this.token = token;
-    this.room = room; // array containing the list of users names, their socket.id and authTokens
-    this.nick = nick; // nickname of the user
-    this.id = id; // last socket.id for that user, this one might get removed if we end up not using it
-}
+var userSchema = new Schema({
+    token: String,
+    room: String,
+    nick: String,
+    id: String
+});
 // ALL DATABASE RELATED FUNCITONS GO HERE
 
-mongoClient.connect(dbUrl, function(err, database){
-    assert.equal(null, err);
-    db = database;
-    terminalMessage('Connected to database');
+mongoose.connect(dbUrl);
+
+var db = mongoose.connection;
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', function(callback){
+    terminalMessage("connected to database");
 });
 
 //finds the room document and returns it, returns null if there is no document
 function getRoom(room, callback) {
     if (db) {
-        console.log('run');
-        var cursor = db.collection('rooms').find({"name": room});
+        console.log('run getRoom');
+        var cursor = db.collection('rooms').find({"name": room}).toArray();
+        console.log(cursor);
         cursor.each(function(err, doc){
-            console.log(doc);
             assert.equal(err, null);
             if (doc) {
-                console.log(92, doc);
                 callback(doc);
             } else {
                 callback(null);
@@ -110,6 +110,15 @@ function getPlaylist(room) {
 //finds the user document and returns it
 function getUser(room, user) {
 
+}
+
+// adds user to the list in the rooms document
+function UpdateUserList(room, names, callback) {
+    db.collection('rooms').update(
+        { name: room },
+        {$set: { userList: names }}
+    );
+    callback();
 }
 
 // generate authentication tokens
@@ -200,12 +209,12 @@ function VimeoUrlParser(uri) {
 function sendNames(room) {
         var clients = [];
         getRoom(room, function(doc) {
-            console.log(203, doc);
-            for (var c in doc.userList) {
-                clients.push(doc.userList[c]);
+            if (doc) {
+                terminalMessage("204: sending list of users");
+                io.to(room).emit('client list', doc.userList);
+            } else {
+                terminalMessage("206: No doc in sendNames");
             }
-            clients.sort();
-            io.to(room).emit('client list', clients);
         });
 
 
@@ -258,16 +267,24 @@ function addUsrInfo(room, userId, nick) {
     //check if nickname is already in use in that room
     getRoom(room, function(doc){
         if (doc) {
-            console.log(261,doc.userList);
-            if (doc.userList.indexOf(nick) !== -1) {
-                terminalMessage('Resending info request for ' + userId);
-                io.to(userId).emit('info request');
-            } else {
+            // if (doc.userList.indexOf(nick) !== -1) {
+            //    terminalMessage('Resending info request for ' + userId);
+            //    io.to(userId).emit('info request');
+            //} else {
+                console.log(doc);
                 newUsr = new userProto(0, room, nick, userId);
-                names.userList.push(nick);
-                db.users.insertOne(newUsr);
-                sendNames(room);
-            }
+                var names = doc.userList;
+                names = names.push(nick);
+                // insert user to the users collection
+                db.collection('users').insertOne(newUsr);
+                // update the list of users in the room in the room collection
+                UpdateUserList(room, names, function(){
+                    sendNames(room);
+                });
+
+            //}
+        } else {
+            terminalMessage('271: No document');
         }
     });
 }
@@ -555,17 +572,19 @@ function voteSkip(currentSong , userId, room) {
 }
 
 // create a new room
-function newRoom(roomName){
+function newRoom(roomName, callback){
     var room = new roomProto(roomName, generateToken(16), 0, [], [], []);
     var playlist = new playlistProto(roomName, []);
     db.collection('rooms').insertOne(room);
     db.collection('playlists').insertOne(playlist);
+    callback();
 }
 
 // handshake on the beginning of the connection, checks room name
 // makes sure the user has a nickname
 // returns the room name
 function handshake(s, callback) {
+    terminalMessage("STARTING HANDSHAKE");
     // make sure heylisten is connected to db before starting to accept clients
     if (db) {
         // determine the proper room name
@@ -583,19 +602,22 @@ function handshake(s, callback) {
             room = roomCheck;
         }
         // check if room already exists in db and add it if it doesn't
-        var roomExists;
         getRoom(room, function(doc){
             console.log(587, doc);
             if(!doc) {
                 terminalMessage('Creating a new room ' + room);
-                newRoom(room);
+                newRoom(room, function(){
+                    callback(room);
+
+                });
+                return;
             }
-            callback(room);
         });
 
         //var check = findClientsByRoomID(room); //change
-
+        callback(room);
     }
+
 }
 
 // server client communication
@@ -622,13 +644,14 @@ io.on('connection', function(socket) {
         socket.join(room);
         // get information about the user
         io.to(socket.id).emit('info request');
+        io.to(socket.id).emit('server message', welcomeMessage);
+        terminalMessage('user ' + socket.id + ' joined room ' +room);
     });
 
 
     // send playlist to the new user
 
-    io.to(socket.id).emit('server message', welcomeMessage);
-    terminalMessage('user ' + socket.id + ' joined room ' +room);
+
     //sendNames(room);
 
     //save the new list of rooms
@@ -697,7 +720,6 @@ io.on('connection', function(socket) {
 
     //get a nickname and add it to an array for that room
     socket.on('info', function (nick) {
-        console.log(699, 'info');
         addUsrInfo(room, socket.id, nick);
     });
 
@@ -711,8 +733,4 @@ io.on('connection', function(socket) {
 
     });
 
-});
-
-http.listen(8080, 'localhost', function(){
-    terminalMessage('listening on *:8080');
 });
