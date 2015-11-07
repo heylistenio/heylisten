@@ -58,6 +58,8 @@ var playlistSchema = new Schema({
     playlist: Array
 });
 
+var Playlist = mongoose.model("Playlists", playlistSchema);
+
 var roomSchema = new Schema({
     name: String,
     opToken: String,
@@ -67,12 +69,19 @@ var roomSchema = new Schema({
     userList: Array
 });
 
+var Room = mongoose.model("Rooms", roomSchema);
+
 var userSchema = new Schema({
     token: String,
+    opToken: String,
     room: String,
     nick: String,
     id: String
 });
+
+var User = mongoose.model("Users", userSchema);
+
+
 // ALL DATABASE RELATED FUNCITONS GO HERE
 
 mongoose.connect(dbUrl);
@@ -80,37 +89,11 @@ mongoose.connect(dbUrl);
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
 db.once('open', function(callback){
-    terminalMessage("connected to database");
+    terminalMessage("connected to database ");
+    http.listen(8080, 'localhost', function(){
+    terminalMessage('listening on *:8080');
 });
-
-//finds the room document and returns it, returns null if there is no document
-function getRoom(room, callback) {
-    if (db) {
-        console.log('run getRoom');
-        var cursor = db.collection('rooms').find({"name": room}).toArray();
-        console.log(cursor);
-        cursor.each(function(err, doc){
-            assert.equal(err, null);
-            if (doc) {
-                callback(doc);
-            } else {
-                callback(null);
-            }
-        });
-    } else {
-        callback(null);
-    }
-
-}
-
-//finds the playlist document and returns it
-function getPlaylist(room) {
-
-}
-//finds the user document and returns it
-function getUser(room, user) {
-
-}
+});
 
 // adds user to the list in the rooms document
 function UpdateUserList(room, names, callback) {
@@ -123,6 +106,7 @@ function UpdateUserList(room, names, callback) {
 
 // generate authentication tokens
 // use this to generate user and op tokens
+// consider writing a function that generates verifiable tokens
 function generateToken(length){
     var chars = 'abcdefghijklmnopqrstuvxyz0123456789ABCDEFGHIJKLMNOPQRSTUVXYZ!@#$%&*=+-_';
     var token = '';
@@ -265,26 +249,31 @@ function addUsrInfo(room, userId, nick) {
     }
 */
     //check if nickname is already in use in that room
-    getRoom(room, function(doc){
-        if (doc) {
-            // if (doc.userList.indexOf(nick) !== -1) {
-            //    terminalMessage('Resending info request for ' + userId);
-            //    io.to(userId).emit('info request');
-            //} else {
-                console.log(doc);
-                newUsr = new userProto(0, room, nick, userId);
-                var names = doc.userList;
-                names = names.push(nick);
-                // insert user to the users collection
-                db.collection('users').insertOne(newUsr);
-                // update the list of users in the room in the room collection
-                UpdateUserList(room, names, function(){
-                    sendNames(room);
-                });
-
-            //}
-        } else {
-            terminalMessage('271: No document');
+    Room.find({name: room},function (err, doc) {
+        console.log("253 " + doc);
+        if (doc === []) {
+            terminalMessage("253: Room " + room + "is not in the db");
+        } else if (doc[0] && doc[0].userList.indexOf(nick) !== -1) {
+            // request nick again if that nick is already being used in that room
+            io.to(userId).emit('info request');
+        } else if (doc[0] && doc[0].userList.indexOf(nick) === -1 ) {
+            console.log("254 " + typeof doc[0].userList);
+            doc[0].userList = doc[0].userList.push(nick);
+            doc[0].save(function(err, doc){
+                if (err) return console.error(err);
+                terminalMessage("inserted " + doc + " into the db");
+            });
+            var newUser = new User({
+                token: generateToken(16),
+                opToken: 1, //temp
+                room: room,
+                nick: nick,
+                id: userId
+            });
+            newUser.save(function(err, newUser){
+                if (err) return console.error(err);
+                terminalMessage("inserted " + newUser + " into the db");
+            });
         }
     });
 }
@@ -571,15 +560,6 @@ function voteSkip(currentSong , userId, room) {
     }
 }
 
-// create a new room
-function newRoom(roomName, callback){
-    var room = new roomProto(roomName, generateToken(16), 0, [], [], []);
-    var playlist = new playlistProto(roomName, []);
-    db.collection('rooms').insertOne(room);
-    db.collection('playlists').insertOne(playlist);
-    callback();
-}
-
 // handshake on the beginning of the connection, checks room name
 // makes sure the user has a nickname
 // returns the room name
@@ -602,18 +582,24 @@ function handshake(s, callback) {
             room = roomCheck;
         }
         // check if room already exists in db and add it if it doesn't
-        getRoom(room, function(doc){
-            console.log(587, doc);
-            if(!doc) {
+        Room.find({ name: room}, function(err, doc){
+            console.log(615, doc);
+            if(!doc[0]) {
                 terminalMessage('Creating a new room ' + room);
-                newRoom(room, function(){
-                    callback(room);
-
+                var newRoom = new Room({
+                    name: room,
+                    opToken: generateToken(16),
+                    startTime: 0,
+                    votes: [],
+                    finished: [],
+                    userList: []
                 });
-                return;
+                newRoom.save(function(err, newRoom){
+                    if(err) return console.error(err);
+                    terminalMessage("inserted " + newRoom + " into db");
+                });
             }
         });
-
         //var check = findClientsByRoomID(room); //change
         callback(room);
     }
