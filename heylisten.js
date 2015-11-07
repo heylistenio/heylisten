@@ -9,18 +9,15 @@ var fs = require('fs');
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 var assert = require('assert');
-var apiKeys = require('./config.js').apiKeys;
-var dbUrl = require('./config.js').url;
+var config = require('./config.js');
+var apiKeys = config.apiKeys;
+var dbUrl = config.url;
+var settings = config.settings;
+var welcomeMessage = config.welcome;
 var maml = require('./maml.js');
 
 //the message people see when they start a new room
-var welcomeMessage = "Welcome to heylisten.io! As you can see the website is \
-                    pretty far from finished. We are working on making it look \
-                    better and adding more features. Feel free to let us know \
-                    what you think of our efforts so far by tweeting at \
-                    https://twitter.com/heylisten_io \
-                    and checkout the devblog at http://blog.heylisten.io \
-                    We support chat commands now, use /help to find out more.";
+
 
 var rooms = io.sockets.adapter.rooms;
 fs.writeFile('./public/roomList.json', '', function(e){
@@ -61,22 +58,22 @@ var playlistSchema = new Schema({
 var Playlist = mongoose.model("Playlists", playlistSchema);
 
 var roomSchema = new Schema({
-    name: String,
-    opToken: String,
-    startTime: Number,
-    votes: Array,
-    Finished: Array,
-    userList: Array
+    name: String, // name of the room
+    opToken: String, // room operator token
+    startTime: Number, // when the last song started
+    votes: Array, // list of users who voted
+    finished: Array, // list of users who finished playing the last song
+    userList: Array // list of users in that room
 });
 
 var Room = mongoose.model("Rooms", roomSchema);
 
 var userSchema = new Schema({
-    token: String,
-    opToken: String,
-    room: String,
-    nick: String,
-    id: String
+    token: String, //id token
+    opToken: String, // room operator token
+    room: String, // room the user is in
+    nick: String, // nickname
+    socketid: String // last socket id of that user
 });
 
 var User = mongoose.model("Users", userSchema);
@@ -119,7 +116,7 @@ function generateToken(length){
 
 
 // find sockets connected to a room
-function findClientsByRoomID(roomId) {
+function findClientsByRoomName(roomId) {
     var res = [];
     var room = io.sockets.adapter.rooms[roomId];
     if (room) {
@@ -132,7 +129,7 @@ function findClientsByRoomID(roomId) {
 
 // update the playlist
 function updateServerPlaylist(room, userId) {
-    var clients = findClientsByRoomID(room);
+    var clients = findClientsByRoomName(room);
     clients = clients.filter(Boolean);
     test = clients.length / 2;
     if (rooms[room].finished.indexOf(userId) === -1){
@@ -190,44 +187,26 @@ function VimeoUrlParser(uri) {
 }
 
 // send a list of clients
-function sendNames(room) {
-        var clients = [];
-        getRoom(room, function(doc) {
-            if (doc) {
-                terminalMessage("204: sending list of users");
+function sendNames(room, userList) {
+        if (userList === undefined) {
+            Room.findOne({name: room}, function(err, doc) {
+                console.log(doc.userList);
+                doc.userList.sort();
                 io.to(room).emit('client list', doc.userList);
-            } else {
-                terminalMessage("206: No doc in sendNames");
-            }
-        });
-
-
-}
-
-// check if user has a nickname and request one if he doesn't
-// returns false if id has no assigned nickname
-function doIKnowYou(room, user) {
-    for (var u in rooms[roomID].users) {
-        if (rooms[roomID].users[u] == userID) {
-            return true;
+            });
+        } else {
+            userList.sort();
+            console.log(userList);
+            io.to(room).emit('client list', userList);
         }
-    }
-    return false;
-}
-// find a users position in users array based on id
-function findUserArrPos(userId, roomId) {
-    for (var u in rooms[roomId].users) {
-        if (rooms[roomId].users[u].id == userId) {
-            return u;
-        }
-    }
-
 }
 
 // add user info to the user and room documents
 function addUsrInfo(room, userId, nick) {
     console.log('adduserinfo');
+    console.log(nick);
     nick = nick.substring(0, 16);
+    console.log(nick);
 
 // change nickname this has to be rewritten to support the new db
 /*    var exists = false;
@@ -249,17 +228,15 @@ function addUsrInfo(room, userId, nick) {
     }
 */
     //check if nickname is already in use in that room
-    Room.find({name: room},function (err, doc) {
-        console.log("253 " + doc);
+    Room.findOne({name: room},function (err, doc) {
         if (doc === []) {
             terminalMessage("253: Room " + room + "is not in the db");
-        } else if (doc[0] && doc[0].userList.indexOf(nick) !== -1) {
+        } else if (doc && doc.userList.indexOf(nick) !== -1) {
             // request nick again if that nick is already being used in that room
             io.to(userId).emit('info request');
-        } else if (doc[0] && doc[0].userList.indexOf(nick) === -1 ) {
-            console.log("254 " + typeof doc[0].userList);
-            doc[0].userList = doc[0].userList.push(nick);
-            doc[0].save(function(err, doc){
+        } else if (doc && doc.userList.indexOf(nick) === -1 ) {
+            doc.userList.push(nick);
+            doc.save(function(err, doc){
                 if (err) return console.error(err);
                 terminalMessage("inserted " + doc + " into the db");
             });
@@ -268,11 +245,13 @@ function addUsrInfo(room, userId, nick) {
                 opToken: 1, //temp
                 room: room,
                 nick: nick,
-                id: userId
+                socketid: userId
             });
             newUser.save(function(err, newUser){
                 if (err) return console.error(err);
                 terminalMessage("inserted " + newUser + " into the db");
+                io.to(room).emit('server message', nick + " connected");
+                sendNames(room);
             });
         }
     });
@@ -346,16 +325,6 @@ function updateTime(room, platform) {
             rooms[room].playlist[0].startAt = startAt;
         }
     }
-}
-
-// get playlist position by song id
-function getPlaylistPositionById(room, id) {
-    for (var i = 0; i < rooms[room].playlist.length; i++) {
-        if (rooms[room].playlist[i].id === id) {
-            return i;
-        }
-    }
-    return false;
 }
 
 // chat commands
@@ -460,17 +429,15 @@ function saveRoomList() {
         rooms : [],
         users : [],
     };
-    var rooms = io.sockets.adapter.rooms;
-    if (rooms) {
-        for (var room in rooms) {
-            if (!rooms[room].hasOwnProperty(room)) {
-                roomList.rooms.push(room);
-                roomList.users.push(findClientsByRoomID(room).filter(Boolean).length);
-            }
+    Room.find({}, function(err, docs){
+        if (err) console.error(err);
+        for (var i = 0; i < docs.length; i++) {
+            roomList.rooms.push(docs[i].name);
+            roomList.users.push(findClientsByRoomName(docs[i].name).filter(Boolean).length);
         }
-    }
-    fs.writeFile('./public/roomList.json', JSON.stringify(roomList), function(e){
-        if (e) throw e;
+        fs.writeFile('./public/roomList.json', JSON.stringify(roomList), function(e){
+            if (e) throw e;
+        });
     });
 }
 
@@ -480,48 +447,64 @@ function addSong(newSong, room, userId) {
     var titleVar = 'Checking Title...';
     var parsed = urlParser(newSong);
     if (parsed !== false) {
-        var plObj = {
-            'id': parsed.id,
-            'title': titleVar,
-            'platform': parsed.platform,
-            'duration': 0,
-            'startAt': 0
-        };
-        for (var i = 0; i < rooms[room].playlist.length; i++) {
-            if (rooms[room].playlist[i].id === plObj.id) {
-                io.to(userId).emit('server message', 'That song is already in the playlist');
-                return;
+        Playlist.findOne({room: room}, function(err, doc) {
+            if (!doc) {
+                doc = new Playlist({
+                    room: room,
+                    playlist: []
+                });
             }
-        }
-
-        // start the timer for the current song
-        if (rooms[room].playlist.length < 1) {
-            rooms[room].timeStarted = getCurrentDate();
-            terminalMessage("timeStarted set");
-        }
-        rooms[room].playlist.push(plObj);
-        io.to(room).emit('playlist', rooms[room].playlist);
-        terminalMessage("playlist with no title sent");
-        // get media info from MAML
-        maml.getMediaInfo(plObj.platform, plObj.id, apiKeys, function(newTitle){
-            var playPos = getPlaylistPositionById(room, plObj.id);
-            if (newTitle) {
-                if (playPos === false) {
+            console.log(" 461 ",doc);
+            var plObj = {
+                'id': parsed.id,
+                'title': titleVar,
+                'platform': parsed.platform,
+                'duration': 0,
+                'startAt': 0
+            };
+            for (var i = 0; i < doc.playlist; i++) {
+                if (doc.playlist[i].id === plObj.id) {
+                    io.to(userId).emit('server message', 'That song is already in the playlist');
                     return;
                 }
-                rooms[room].playlist[playPos].title = newTitle;
-                io.to(room).emit('playlist', rooms[room].playlist);
-                terminalMessage("sending updated playlist with title");
-                if (rooms[room].playlist.length === 1) {
-                    io.to(room).emit('server message', 'Now playing: ' + rooms[room].playlist[0].title);
-                }
-            } else if(!newTitle) {
-                rooms[room].playlist.splice(playPos, 1);
-                terminalMessage("could not resolve ulr, removing sc song from playlist");
-                io.to(room).emit('playlist', rooms[room].playlist);
             }
+            if (doc.playlist.length < 1) {
+                // start the timer for the current song
+                Room.findOne({name: room}, function(err, doc) {
+                    if (err) console.error(err);
+                    doc.startTime = getCurrentDate();
+                    terminalMessage("time Started set");
+                    doc.save(function(err) {
+                        if (err) console.error(err);
+                    });
+                });
+            }
+            doc.playlist.push(plObj);
+            io.to(room).emit('playlist', doc.playlist);
+            terminalMessage("playlist with no title sent");
+            // get media info from MAML
+            maml.getMediaInfo(plObj.platform, plObj.id, apiKeys, function(newTitle){
+                var playPos = doc.playlist.length -1;
+                if (newTitle) {
+                    if (playPos === false) {
+                        return;
+                    }
+                    doc.playlist[playPos].title = newTitle;
+                    io.to(room).emit('playlist', doc.playlist);
+                    terminalMessage("sending updated playlist with title");
+                    if (doc.playlist.length === 1) {
+                        io.to(room).emit('server message', 'Now playing: ' + doc.playlist[0].title);
+                    }
+                } else if(!newTitle) {
+                    doc.playlist.splice(playPos, 1);
+                    terminalMessage("could not resolve ulr, removing sc song from playlist");
+                    io.to(room).emit('playlist', doc.playlist);
+                }
+            });
+            doc.save(function(err){
+                if (err) console.error(err);
+            });
         });
-
     } else {
         io.to(userId).emit('server message', "Bad URL");
         terminalMessage('bad url');
@@ -546,7 +529,7 @@ function voteSkip(currentSong , userId, room) {
             } else {
                 io.to(userId).emit('server message', "You already voted");
             }
-            var clients = findClientsByRoomID(room);
+            var clients = findClientsByRoomName(room);
             clients = clients.filter(Boolean);
             var test = clients.length / 2;
             if (rooms[room].voteCount.length > test) {
@@ -559,6 +542,8 @@ function voteSkip(currentSong , userId, room) {
 
     }
 }
+
+// destroys a room and all entries in the db of that room
 
 // handshake on the beginning of the connection, checks room name
 // makes sure the user has a nickname
@@ -582,9 +567,9 @@ function handshake(s, callback) {
             room = roomCheck;
         }
         // check if room already exists in db and add it if it doesn't
-        Room.find({ name: room}, function(err, doc){
+        Room.findOne({ name: room}, function(err, doc){
             console.log(615, doc);
-            if(!doc[0]) {
+            if(!doc) {
                 terminalMessage('Creating a new room ' + room);
                 var newRoom = new Room({
                     name: room,
@@ -604,6 +589,22 @@ function handshake(s, callback) {
         callback(room);
     }
 
+}
+
+// destroy a room
+function destroyRoom(room) {
+    var clients = findClientsByRoomName(room);
+    if (clients < 1) { //if room is empty destroy it
+            terminalMessage('destroying empty room ' + room);
+            delete rooms[room];
+            var query = Room.remove({name: room});
+            query.exec();
+            query = Playlist.remove({room: room});
+            query.exec();
+            query = User.remove({room: room});
+            query.exec();
+
+    }
 }
 
 // server client communication
@@ -632,42 +633,38 @@ io.on('connection', function(socket) {
         io.to(socket.id).emit('info request');
         io.to(socket.id).emit('server message', welcomeMessage);
         terminalMessage('user ' + socket.id + ' joined room ' +room);
+        saveRoomList();
     });
-
-
-    // send playlist to the new user
-
-
-    //sendNames(room);
-
-    //save the new list of rooms
-    saveRoomList();
 
     //disconnection
     socket.on('disconnect', function () {
         socket.leave(room);
         terminalMessage('user ' + socket.id + ' disconnected from ' + room);
-        var clients = findClientsByRoomID(room);
-        clients = clients.filter(Boolean);
-        var ifVoted = rooms[room].voteCount.indexOf(socket.id);
-        if (ifVoted !== -1) {
-            rooms[room].voteCount.splice(ifVoted, 1);
-        }
-        var ifFinished = rooms[room].finished.indexOf(socket.id);
-        if (ifVoted !== -1) {
-            rooms[room].finished.splice(ifFinished, 1);
-        }
-        if (clients < 1) { //if room is empty destroy it
-            terminalMessage('destroying empty room ' + room);
-            delete rooms[room];
-        } else { //otherwise just send an updated client list
-            var thisUser = findUserArrPos(socket.id, room);
-            if (thisUser !== undefined) {
-                var message = rooms[room].users[thisUser].nick + " disconnected";
-                io.to(room).emit('server message', message);
-                rooms[room].users.splice(thisUser, 1);
-            }
-            sendClients(room);
+        var clients = findClientsByRoomName(room);
+        clients = clients.filter(Boolean).length;
+        // update list of people in the room
+        User.findOne({socketid: socket.id}, function(err, userDoc){
+            var message = doc.nick + " disconnected";
+            io.to(room).emit('Server Message', message);
+            // Update the room document
+            Room.findOne({name: room}, function(err, roomDoc){
+                var test = roomDoc.votes.indexOf(socket.id);
+                // if user voted remove the socket id from array
+                if (test !== -1) {
+                    roomDoc.votes.splice(test, 1);
+                }
+                test = roomDoc.finished.indexOf(socket.id);
+                // if user finished playing the song remove the socket id from array
+                if (test !== -1) {
+                    roomDoc.finished.splice(test, 1);
+                }
+                // send the updated list of names to users
+                sendNames(room, roomDoc.userList);
+            });
+        });
+        if (clients < 1) {
+             //start the timeout to destroy the room
+            setTimeout(destroyRoom(room), settings.roomTimeout);
         }
         saveRoomList();
     });
@@ -695,7 +692,7 @@ io.on('connection', function(socket) {
     });
 
     socket.on('client list', function (){
-        sendClients(room, rooms[room].users);
+        sendNames(room, rooms[room].users);
     });
 
     //vote to skip a song
