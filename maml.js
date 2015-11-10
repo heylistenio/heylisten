@@ -5,79 +5,75 @@
 var https = require('https');
 var http = require('http');
 
-//get video titles
-function getYTVideoInfo(id, ytAPIkey, callback) {
-    var newTitle;
-    var uri = 'https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + id + '&key=' + ytAPIkey;
-    https.get(uri, function (res) {
-            var body = '';
-            res.on ('data', function(chunk) {
-            body+= chunk;
-        });
-        res.on('end', function() {
-            var vidInfo = JSON.parse(body);
-            //execute a callback function with the new title as a parameter
-            if (vidInfo.items[0]) {
-             callback(vidInfo.items[0].snippet.title);
-         } else {
-             callback(null);
-         }
-        });
-    }).on('error', function(e) {
-        console.log("Got error: " + e);
-        });
+function errorReport(e) {
+    console.log("Got error: " + e);
 }
 
-//get soundcloud song info
-function getSCSongInfo(id, scAPIkey, callback) {
-    var newTitle;
-    var newURL = '';
-    var uri = 'http://api.soundcloud.com/resolve.json?url=' + id + '&client_id=' + scAPIkey; //the url to resolve the other url
-    http.get(uri, function (res) {
+// makes https get request and returns the response JSON parsed response
+function httpsGet(uri, callback) {
+    https.get(uri, function(res){
         var body = '';
         res.on('data', function(chunk) {
             body+= chunk;
         });
-        res.on('end', function() {
-            var urlInfo = JSON.parse(body);
-            newURL = urlInfo.location;
-            if (newURL) {
-                https.get(newURL, function(res) {
-                    var body = '';
-                    res.on('data', function(chunk) {
-                        body += chunk;
-                    });
-                    res.on('end', function() {
-                        var songInfo = JSON.parse(body);
-                        newTitle = songInfo.user.username + " - " + songInfo.title;
-                        if (newTitle) {
-                            callback(newTitle);
-                        } else {
-                            callback(null);
-                        }
-                    });
-                });
-            } //else {
-            //    rooms[roomId].playlist.splice(playPos, 1);
-            //    io.to(roomId).emit('playlist', rooms[roomId].playlist);
-            //    terminalMessage("could not resolve ulr, removing sc song from playlist");
-            //}
-
+        res.on('end',function(){
+            callback(JSON.parse(body));
         });
-        res.on('error', function(e) {
-            console.log("Failed to resolve SC url: ", e);
-        });
+    }).on('error', function(e){
+        console.log(e);
     });
-
-
 }
 
-function getVimeoSongInfo(id, apiKey, callback) {
+// makes http get request and returns the response JSON parsed response
+
+function httpGet(uri, callback){
+    http.get(uri, function(res){
+        var body = '';
+        res.on('data', function(chunk) {
+            body+= chunk;
+        });
+        res.on('end',function(){
+            callback(JSON.parse(body));
+        });
+    }).on('error', function(e){
+        console.log(e);
+    });
+}
+
+//get video titles
+function getYTVideoInfo(plObj, ytAPIkey, callback) {
+    var uri = 'https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + plObj.id + '&key=' + ytAPIkey;
+    httpsGet(uri, function(res){
+        if (res) {
+            plObj.title = res.items[0].snippet.title;
+            callback(plObj);
+        } else {
+            return false;
+        }
+    });
+}
+
+//get soundcloud song info
+function getSCSongInfo(plObj, scAPIkey, callback) {
+    var uri = 'http://api.soundcloud.com/resolve.json?url=' + plObj.id + '&client_id='+ scAPIkey; //the url to resolve the other url
+    console.log("uri ", uri);
+    httpGet(uri, function(response){
+        if(response) {
+            console.log(61,  response);
+            httpsGet(response.location, function(songInfo) {
+                plObj.title = songInfo.user.username + " - " + songInfo.title;
+                callback(plObj);
+            });
+        }
+    });
+}
+
+function getVimeoSongInfo(plObj, apiKey, callback) {
 	var newTitle;
 	var newURL = '';
-	var uri = 'https://api.vimeo.com/videos/' + id;
-	var path = '/videos/' + id;
-	var apikey = {'Authorization': 'bearer 14b21e39f0d47c138a0c70f625d1cda1'};
+	var uri = 'https://api.vimeo.com/videos/' + plObj.id;
+	var path = '/videos/' + plObj.id;
+	var apikey = {'Authorization': 'bearer ' + apiKey};
 	var options = {
 		hostname: 'api.vimeo.com',
 		port: 443,
@@ -94,7 +90,8 @@ function getVimeoSongInfo(id, apiKey, callback) {
 		res.on('end', function (){
 			var songInfo = JSON.parse(body);
             if (songInfo) {
-    		    callback(songInfo.name);
+                plObj.title = songInfo.name;
+    		    callback(plObj);
             } else {
                 callback(null);
             }
@@ -108,16 +105,18 @@ function getVimeoSongInfo(id, apiKey, callback) {
 }
 
 // avaliable functions
-exports.getMediaInfo = function (platform, id, apiKeys, callback) {
-    if (platform === "youtube") {
-        title = getYTVideoInfo(id, apiKeys.YouTube, callback);
-    } else if (platform === "soundcloud") {
-        title = getSCSongInfo(id, apiKeys.SoundCloud, callback);
-    } else if (platform === "vimeo") {
-        title = getVimeoSongInfo(id, apiKeys.Vimeo, callback);
+exports.getMediaInfo = function (plObj, apiKeys, doc, callback) {
+    for (var i = 0; i < plObj.length; i++) {
+        if (plObj[i].platform === "youtube") {
+            title = getYTVideoInfo(plObj[i], apiKeys.YouTube, callback);
+        } else if (plObj[i].platform === "soundcloud") {
+            title = getSCSongInfo(plObj[i], apiKeys.SoundCloud, callback);
+        } else if (plObj[i].platform === "vimeo") {
+            title = getVimeoSongInfo(plObj[i], apiKeys.Vimeo, callback);
+        }
     }
 };
-
+// Needs to be cleaned up
 // get recent uploads from a youtube channel
 exports.getYouTubeChannelUploads = function(channelName, maxResults, ytAPIkey, callback) {
     var playlistIdRequest = "https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forUsername=" + channelName + '&key=' + ytAPIkey;
