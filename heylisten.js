@@ -430,7 +430,7 @@ function addSong(newSong, room, userId) {
                 }
             } else if(!newTitle) {
                 rooms[room].playlist.splice(playPos, 1);
-                terminalMessage("could not resolve ulr, removing sc song from playlist");
+                terminalMessage("could not resolve ulr, removing song from playlist");
                 io.to(room).emit('playlist', rooms[room].playlist);
             }
         });

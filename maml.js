@@ -109,6 +109,7 @@ function getVimeoSongInfo(id, apiKey, callback) {
 
 // avaliable functions
 exports.getMediaInfo = function (platform, id, apiKeys, callback) {
+    console.log(apiKeys);
     if (platform === "youtube") {
         title = getYTVideoInfo(id, apiKeys.YouTube, callback);
     } else if (platform === "soundcloud") {
@@ -128,7 +129,7 @@ exports.getYouTubeChannelUploads = function(channelName, maxResults, ytAPIkey, c
         });
         res.on('end', function() {
             var channelInfo = JSON.parse(body);
-            if (channelInfo.intems && channelInfo.items.length > 0) {
+            if (channelInfo.items && channelInfo.items.length > 0) {
                 playlistId = channelInfo.items[0].contentDetails.relatedPlaylists.uploads;
 
                 // check if the uploads playlists exists

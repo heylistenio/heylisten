@@ -1,6 +1,6 @@
 // adress, login, and password for the db
 //not used right now
-exports.url = ""
+exports.url = "";
 
 // API keys
 exports.YouTube = '';
