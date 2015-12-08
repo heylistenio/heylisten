@@ -1,6 +1,6 @@
 /*jshint multistr: true */
 // adress, login, and password for the db
-exports.url = "mongodb://localhost:27017/heylisten";
+exports.url = "";
 
 // API keys for heylisten.io
 exports.apiKeys = {
