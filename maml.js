@@ -177,11 +177,15 @@ exports.getYouTubePlaylist = function(playlistID, maxResults, ytAPIkey, callback
         res.on('end', function() {
             var playlistInfo = JSON.parse(body);
             var videoList = [];
-            for (var i = 0; i < playlistInfo.items.length; i++) {
-                videoList[i] = playlistInfo.items[i].contentDetails.videoId;
-            }
-            if (videoList.length > 0) {
-                callback(videoList);
+            if (playlistInfo.items) {
+                for (var i = 0; i < playlistInfo.items.length; i++) {
+                    videoList[i] = playlistInfo.items[i].contentDetails.videoId;
+                }
+                if (videoList.length > 0) {
+                    callback(videoList);
+                } else {
+                    callback(null);
+                }
             } else {
                 callback(null);
             }
