@@ -3,4 +3,5 @@
 node_modules
 .directory
 config.js.bak
+start_heylisten.sh
 public/roomList.json

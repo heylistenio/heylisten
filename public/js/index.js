@@ -1,5 +1,5 @@
 document.getElementById("roomForm").onsubmit = function(){
-    var link = 'http://heylisten.io/' + document.getElementById('r').value;
+    var link = 'https://heylisten.io/' + document.getElementById('r').value;
     window.location.href = link;
     return false;
 };
@@ -20,7 +20,7 @@ function getRoomList() {
         }
 
     };
-    req.open("GET", "http://heylisten.io/roomList.json", true);
+    req.open("GET", "https://heylisten.io/roomList.json", true);
     req.send(null);
 }
 
@@ -28,7 +28,7 @@ function listRooms(rooms) {
     var list = '';
     for (var i=0; i < rooms.rooms.length; i++) {
         if (rooms.users[i] > 99) rooms.users[i] = '99+';
-        list +='<li><a href="http://heylisten.io' + decodeURI(rooms.rooms[i]) + '"><span>'+ rooms.users[i] + "</span>" + decodeURI(rooms.rooms[i].substring(1)) + '</a>';
+        list +='<li><a href="https://heylisten.io' + decodeURI(rooms.rooms[i]) + '"><span>'+ rooms.users[i] + "</span>" + decodeURI(rooms.rooms[i].substring(1)) + '</a>';
     }
     document.getElementById('roomList').children[1].innerHTML = list;
 
