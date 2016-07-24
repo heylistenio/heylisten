@@ -55,31 +55,6 @@ function terminalMessage(text) {
     console.log(timeStamp + text);
 }
 
-// ALL DATABASE RELATED FUNCITONS GO HERE
-function getPlaylist(room) {
-
-}
-
-function setPlaylist(room) {
-
-}
-
-function getUsers(room){
-
-}
-
-function setUsers(room) {
-
-}
-
-function getRoomProperties(room) {
-
-}
-
-function setRoomProperties(room) {
-
-}
-
 // generate authentication tokens
 function generateToken(length){
     var chars = 'abcdefghijklmnopqrstuvxyz0123456789ABCDEFGHIJKLMNOPQRSTUVXYZ!@#$%&*=+-_';

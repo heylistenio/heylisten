@@ -57,11 +57,9 @@ function getSCSongInfo(id, scAPIkey, callback) {
                         }
                     });
                 });
-            } //else {
-            //    rooms[roomId].playlist.splice(playPos, 1);
-            //    io.to(roomId).emit('playlist', rooms[roomId].playlist);
-            //    terminalMessage("could not resolve ulr, removing sc song from playlist");
-            //}
+            } else {
+                callback(null);
+            }
 
         });
         res.on('error', function(e) {
