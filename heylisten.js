@@ -7,9 +7,6 @@ var http = require('http').Server(app);
 var https = require('https').Server(app);
 var io = require('socket.io')(http);
 var fs = require('fs');
-//var cert = fs.readFileSync('/etc/letsencrypt/live/heylisten.io/fullchain.pem');
-//var key = fs.readFileSync('/etc/letsencrypt/live/heylisten.io/privkey.pem');
-var mongoClient = require('mongodb').Mongoclient;
 var assert = require('assert');
 
 var apiKeys = require('./config.js');
@@ -484,6 +481,7 @@ function addNick(room, userId, nick) {
 // nickname - nickname to be assigned to the id, client to server only
 // nick request - nickname request, server to client only
 // vote skip - cast a vote to skip a song, client to server only
+// resync - sync a video with the server
 // time - spot in the song the client is in, / not implemented
 // startat                                   /not implemented
 
@@ -563,7 +561,7 @@ io.on('connection', function(socket) {
         }
         if (clients < 1) { //if room is empty destroy it
             terminalMessage('destroying empty room ' + room);
-            delete rooms[room];
+            setTimeout(function(){delete rooms[room]; }, 120000);
         } else { //otherwise just send an updated client list
             var thisUser = findUserArrPos(socket.id, room);
             if (thisUser !== undefined) {
@@ -611,6 +609,11 @@ io.on('connection', function(socket) {
     //get a nickname and add it to an array for that room
     socket.on('nickname', function (nick) {
         addNick(room, socket.id, nick);
+    });
+
+    socket.on('resync', function () {
+      updateTime(room, rooms[room].playlist[0].platform);
+      io.to(socket.id).emit('playlist', rooms[room].playlist);
     });
 
     //recieve times from users in a room

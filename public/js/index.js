@@ -20,7 +20,7 @@ function getRoomList() {
         }
 
     };
-    req.open("GET", "https://heylisten.io/roomList.json", true);
+    req.open("GET", "http://heylisten.io/roomList.json", true);
     req.send(null);
 }
 

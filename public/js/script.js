@@ -125,7 +125,8 @@ function getCurrentTime() {
 
 // play a song
 function play(song, callback) {
-    if (!currentSong || currentSong.id != song.id) {
+  timeStamp = getCurrentTime();
+    if (!currentSong || currentSong.id != song.id || (currentSong.id === song.id && timeStamp != song.startAt)) {
         if (!currentSong || currentSong.platform != song.platform) playerSwitch(song);
         currentSong = song;
         switch (playlist[0].platform) {
@@ -321,6 +322,10 @@ document.getElementById("messageInput").onsubmit = function() {
 
 function vote() {
     socket.emit("vote skip", currentSong);
+}
+
+function resync() {
+    socket.emit("resync");
 }
 
 //recieve updated playlist
